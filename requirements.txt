@@ -1,0 +1,10 @@
+matplotlib==3.7.1
+networkx==3.2.1
+numpy==1.23.5
+openai==1.2.0
+opencv-python==4.9.0.80
+scikit-image==0.21.0
+torch==2.2.1
+torchvision==0.17.1
+webcolors==1.13
+pygraphviz==1.12
