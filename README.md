@@ -22,6 +22,11 @@ Last, you could simply run the code by calling:
 ```bash
 python main.py
 ```
+You can change the prompt for generation in the `main.py` file:
+```python
+# Enter your prompt here
+prompt = "a 1B1B house with a garage and a kitchen."
+```
 
 ## Modules
 - [x] House Floorplan Generation (Prompt, Generator, Mesh Creation)
