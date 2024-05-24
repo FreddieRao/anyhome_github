@@ -34,3 +34,4 @@ prompt = "a 1B1B house with a garage and a kitchen."
 - [ ] Trajectory Generation
 - [ ] SDS Optimization
 - [ ] Texture Generation
+- [ ] Editability

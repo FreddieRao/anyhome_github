@@ -4,6 +4,10 @@ from skimage.measure import label
 import torch
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
+from termcolor import colored
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def one_hot_embedding(labels, num_classes=19):
@@ -29,7 +33,7 @@ def check_post_processing(nds, eds, masks, door_list, img_size=256):
     # Check whether the output masks are valid based on nodes and edges
     real_nodes = np.where(nds.detach().cpu()==1)[-1]
     if len(real_nodes) != masks.shape[0]:  # If there are extra nodes or less nodes
-        print("Node Number Inequivalent")
+        print(colored("Floorplan Invalid: Node Number Inequivalent. Retrying...", "grey"))
         return False, None, None, None
 
     result_masks = []
@@ -39,7 +43,7 @@ def check_post_processing(nds, eds, masks, door_list, img_size=256):
         m_lg = cv2.resize(m, (img_size, img_size), interpolation = cv2.INTER_AREA)
         # Check whether the mask is null
         if np.all(m_lg == 0):
-            print(f"Zero Mask Error for node {i}")
+            print(colored(f"Floorplan Invalid: Zero Mask Error for Node {i}. Retrying...", "grey"))
             return False, None, None, None
         # Check whehter the mask contains one or more separate regions
         labeled_img = label(m_lg)
@@ -65,7 +69,7 @@ def check_post_processing(nds, eds, masks, door_list, img_size=256):
     # Check if the doors and the rooms are interconnected as stated
     for pair in eds:
         if not check_is_interconnected(result_map, pair[0], pair[2]):
-            print("Not Interconnected Error for node")
+            print(colored("Floorplan Invalid: Disconnected Error. Retrying...", "grey"))
             return False, None, None, None
 
     result_map_no_doors = np.full([img_size, img_size], -1)
@@ -290,7 +294,7 @@ def get_room_boundaries(map_array, front_door_index, start_coors, min_pixels=12)
     room_numbers = room_numbers[room_numbers != -2]  # Exclude -2 (wall)
     room_numbers = room_numbers[room_numbers != -10]  # Exclude -10 (outside)
     room_numbers = room_numbers[room_numbers != front_door_index]
-    print(room_numbers)
+    # print(room_numbers)
 
     boxes = {}
     centers = {}
@@ -299,13 +303,13 @@ def get_room_boundaries(map_array, front_door_index, start_coors, min_pixels=12)
     centers[front_door_index] = [start_coors]
 
     for room in room_numbers:
-        print("room", room)
+        # print("room", room)
         # Create binary image for each room
         binary_img = np.where(map_array == room, 1, 0).astype(np.int32)
 
         # Decompose the room into rectangles
         rectangles, center = decompose_into_rectangles(binary_img, min_pixels)
-        print(rectangles, center)
+        # print(rectangles, center)
         boxes[room] = rectangles
         centers[room] = center
 

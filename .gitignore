@@ -2,3 +2,10 @@
 *.pyc
 credentials.py
 credentials.py
+drawing.py
+floorplan/output/_true_graph.jpg
+floorplan/output/final_fp.png
+floorplan/output/init_fp.png
+floorplan/output/input_graph.png
+output/base_mesh.obj
+credentials.py
