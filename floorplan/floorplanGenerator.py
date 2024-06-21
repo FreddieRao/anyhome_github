@@ -37,7 +37,7 @@ class FloorplanGenerator:
         house_v, house_f = utils.write_to_obj(segments, border_map_no_doors)
         print(colored("House Mesh Generated Successfully!", "magenta"))
 
-        return house_v, house_f
+        return house_v, house_f, border_map_no_doors, room_name_dict, boxes, centers
     
     def generate_floorplan(self, nds, eds, room_name_dict, room_list):
         # Control whether the generated map is valid
@@ -53,17 +53,14 @@ class FloorplanGenerator:
         border_map_no_doors, start_coors = utils.generate_border_map_no_doors(result_map_no_doors, result_masks, list(range(len(room_name_dict), len(room_list))), nds, eds)
         # Define the custom colors
         custom_colors = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (1.0, 0.0, 0.0), *plt.cm.tab20b(np.linspace(0, 1, 19))]
-        # Create the custom colormap
-        custom_cmap = LinearSegmentedColormap.from_list('custom_cmap', custom_colors)
-        plt.imshow(border_map_no_doors, cmap=custom_cmap)
         # Decompose each room into regular rectangles and obtain the centers
         boxes, centers = utils.get_room_boundaries(border_map_no_doors, len(room_list)-1, start_coors)
         utils.visualize_map_with_centers(border_map_no_doors, boxes, centers)
 
         return border_map_no_doors, boxes, centers
 
-    def generate_bubble_diagram(self, description, is_edit=False, edit_description="", edit_fp=""):
-        # Generate graph from descriptoin using GPT-4
+    def generate_bubble_diagram(self, description, is_edit=False, edit_description=None, edit_fp=None):
+        # Generate a graph from description using GPT-4
         context_msg = """
         Task: You are a talented Architectural Planner tasked with envisioning the floorplan for a house described as {}. Your need to generate four things as described below:
 
@@ -124,8 +121,8 @@ class FloorplanGenerator:
         response_str = raw_response.choices[0].message.content
         raw_response = response_str.replace("\n", "").replace(" ", "")
         response = json.loads(raw_response)
-        print(colored("House Bubble Diagram:", "green"))
-        print('\n'.join([f'{k}: {v}' for k, v in response.items()]))
+        print(colored("House Floorplan Graph", "green"))
+        print('\n'.join([f'{colored(k, "blue")}: {v}' for k, v in response.items()]))
 
         complete_room_list = response["complete_room_list"]
         room_list = response["modified_room_list"]
