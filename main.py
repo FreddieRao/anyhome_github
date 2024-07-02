@@ -1,9 +1,9 @@
-from floorplan.floorplanGenerator import FloorplanGenerator
-from layout.layoutGenerator import LayoutGenerator
+from floorplan.floorplan_generator import FloorplanGenerator
+from layout.layout_generator import LayoutGenerator
 import credentials
 
 # Enter your prompt here
-prompt = "A large house with only a long hallway connected to three bedrooms, no other rooms."
+prompt = "A 1B1B haunted house."
 
 # Create a floorplan generator, the floor plan mesh is stored at ./output, and the fp visualizations are at ./floorplan/output
 floorplanGenerator = FloorplanGenerator(prompt)

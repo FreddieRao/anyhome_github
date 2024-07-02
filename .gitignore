@@ -9,3 +9,4 @@ floorplan/output/init_fp.png
 floorplan/output/input_graph.png
 output/base_mesh.obj
 credentials.py
+.DS_Store

@@ -1,10 +1,10 @@
 import os
+import regex
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 import openai
 import json
 from termcolor import colored
-
 import matplotlib.pyplot as plt
 import torch
 from torchvision.utils import save_image
@@ -21,6 +21,7 @@ class FloorplanGenerator:
         self.houseganpp_weight = houseganpp_weight
 
     def generate_house_mesh(self, edit=False):
+        print(colored("Generating house mesh...", "grey"))
         # Generate graph from descriptoin
         nds, eds, room_name_dict, room_list, fp_str = self.generate_bubble_diagram(self.description)
         # Generate floorplan
@@ -28,7 +29,7 @@ class FloorplanGenerator:
         # Handle editing
         while edit:
             edit_description = input(colored("Enter the description of the changes you want to make to the floorplan (Enter q to stop editing): ", "green"))
-            if edit_description == "q":
+            if edit_description == "q" or edit_description == "":
                 break
             nds, eds, room_name_dict, room_list, fp_str = self.generate_bubble_diagram(self.description, is_edit=True, edit_description=edit_description, edit_fp=fp_str)
             border_map_no_doors, boxes, centers = self.generate_floorplan(nds, eds, room_name_dict, room_list)
@@ -85,8 +86,8 @@ class FloorplanGenerator:
         Requirements:
         1. Complete Room List: Compile a comprehensive list of all rooms within the house. The list should adhere as close as possible with the house description given. If a room type appears multiple times, append an index to differentiate them. Without exceeding the house description, aim for a diverse assortment of rooms, covering a wide range of functionalities. You can generate any room type for the complete room list. For example, if the house features two bedrooms and one dining room, list them as: "[bedroom1, bedroom2, dining room1]".
         2. Modified Room List: Adapt the previously listed rooms into a standardized set of room types based on their functionality and the house's style. Use only the following room types: kitchen, storage, bathroom, study_room, balcony, living_room, bedroom, entrance, dining_room, and unknown. Transform unique rooms to the closest match from the predefined list, appending an index if necessary. If a room does not match any predefined type, label it as "unknown".
-        3. Room Connections: Map out the connectivity between rooms, detailing which rooms are directly accessible from each other. Present this information as a list of tuples, indicating room pairs that share a connection. For instance, if the dining room connects to both bedroom1 and bedroom2, but there is no direct connection between the two bedrooms, list the connections as: "[[dining_room1, bedroom1], [dining_room1, bedroom2]]". The room names should be consistent with the complete room list that you've generated.
-        4. Front Door Locations: Identify the rooms that house the main entrances to the dwelling. Specify each room that contains a front door, considering it as the primary access point to the house.
+        3. Room Connections: Map out the connectivity between rooms, detailing which rooms are directly accessible from each other. Present this information as a list of tuples, indicating room pairs that share a connection. For instance, if the dining room connects to both bedroom1 and bedroom2, but there is no direct connection between the two bedrooms, list the connections as: "[[dining_room1, bedroom1], [dining_room1, bedroom2]]". The room names should be consistent with the names in the complete room list that you've generated.
+        4. Front Door Locations: Identify the rooms that house the main entrances to the dwelling. Specify each room that contains a front door, considering it as the primary access point to the house. The room name should be consistent with the names in the complete room list that you've generated.
 
         The description of the House:
         {}
@@ -120,8 +121,10 @@ class FloorplanGenerator:
 
         response_str = raw_response.choices[0].message.content
         raw_response = response_str.replace("\n", "").replace(" ", "")
-        response = json.loads(raw_response)
-        print(colored("House Floorplan Graph", "green"))
+        pattern = r'\{(?:[^{}]|(?R))*\}'  # regex to discard text paragraphs before or after the JSON object
+        response = json.loads(regex.search(pattern, raw_response).group())
+
+        print(colored("House Floorplan Graph", "yellow"))
         print('\n'.join([f'{colored(k, "blue")}: {v}' for k, v in response.items()]))
 
         complete_room_list = response["complete_room_list"]
@@ -187,7 +190,7 @@ class FloorplanGenerator:
         graph_nodes = torch.FloatTensor(graph_nodes)
         graph_edges = torch.LongTensor(organized_triples)
 
-        return graph_nodes, graph_edges, room_name_dict, room_list, response_str
+        return graph_nodes, graph_edges, room_name_dict, room_list, str(response)
 
     def generate_layout_masks(self, nds, eds):
         # Create output dir
@@ -231,7 +234,7 @@ class FloorplanGenerator:
 
         # Save final floorplans
         imk = draw_masks(masks.copy(), real_nodes)
-        imk = torch.tensor(np.array(imk).transpose((2, 0, 1)))/255.0
+        imk = torch.tensor(np.array(imk).transpose((2, 0, 1))) / 255.0
         save_image(imk, './{}/final_fp.png'.format(self.output_dir), nrow=1, normalize=False)
 
         return masks
