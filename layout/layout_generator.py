@@ -33,32 +33,43 @@ class LayoutGenerator:
         }
     
     def generate_room_objects(self, edit=False):
-        room_graph_list = {}  # Store the room graph for each room
+        furniture_graph_list, ornament_graph_list = {}, {}  # Store the room graphs for each room
         poss, sizs, angs = [], [], []  # Store the positions, sizes, and angles of the objects
         for i, room in enumerate(list(self.room_name_dict.keys())):
-            print(colored(f"Generating furniture for {room}...", "grey"))
+            print(colored(f"Generating objects for {room}...", "grey"))
             # Obtain the room area
             box = self.boxes[i]  # Obtain the bounding boxes for this room
             areas = [(x2-x1) * (y2-y1) for (x1, y1, x2, y2) in box]
             total_area = sum(areas)
 
-            # Generate the furniture diagram
-            room_graph = self.generate_furniture_diagram(total_area, room)
-            room_graph_list[room] = room_graph
-            pos, siz, ang = self.generate_furniture_layout(i, room, room_graph)
+            # Generate the furniture diagram and layout
+            furniture_graph = self.generate_furniture_diagram(total_area, room)
+            furniture_graph_list[room] = furniture_graph
+            pos, siz, ang = self.generate_furniture_layout(i, room, furniture_graph)
 
             while edit:  # Allow multiple-round language-guided editing
                 edit_description = input(colored("Enter the description of the changes you want to make to the layout graph (Enter q to stop editing): ", "green"))
                 if edit_description == "q" or edit_description == "":
                     break
-                room_graph = self.generate_furniture_diagram(total_area, room, is_edit=True, edit_description=edit_description, edit_graph=room_graph)
-                room_graph_list[room] = room_graph
-                pos, siz, ang = self.generate_furniture_layout(i, room, room_graph)
+                furniture_graph = self.generate_furniture_diagram(total_area, room, is_edit=True, edit_description=edit_description, edit_graph=furniture_graph)
+                furniture_graph_list[room] = furniture_graph
+                pos, siz, ang = self.generate_furniture_layout(i, room, furniture_graph)
 
             poss.append(pos)
             sizs.append(siz)
             angs.append(ang)
-    
+
+            # Generate the ornament diagram
+            ornament_graph = self.generate_ornament_diagram(total_area, room, list(pos.keys()))
+            ornament_graph_list[room] = ornament_graph
+
+            while edit:
+                edit_description = input(colored("Enter the description of the changes you want to make to the layout graph (Enter q to stop editing): ", "green"))
+                if edit_description == "q" or edit_description == "":
+                    break
+                ornament_graph = self.generate_ornament_diagram(total_area, room, list(pos.keys()), is_edit=True, edit_description=edit_description, edit_graph=ornament_graph)
+                ornament_graph_list[room] = ornament_graph
+
     def generate_furniture_layout(self, i, room, room_graph):
         # Place the furniture in the room
         mask = (self.border_map_no_doors == i).astype(int)  # Create a dummy mask for the room
@@ -191,7 +202,7 @@ class LayoutGenerator:
 
     def place_furnitures_auto(self, furniture_groups_and_placement_rules, furniture_sizes, bbox, centers, collision_map):
         """The main function to iteratively place the furniture groups in the room, using the rules above"""
-        def place_spare(key_siz):
+        def place_spare():
             indices = np.argwhere(collision_map == 1)
             key_x, key_y = np.mean(indices, axis=0)
             key_x, key_y = int(round(float(key_x), 0)), int(round(float(key_y), 0))
@@ -217,7 +228,7 @@ class LayoutGenerator:
             anchor, anchor_rule = group[0]
             key_siz = [int(furniture_sizes[anchor][0] * 12), int(furniture_sizes[anchor][1] * 12)]
             if anchor_rule == "place_center":  # if two furnitures are to be placed centerly, then place the subsequent one at the center of last available spaces
-                key_x, key_y, key_ang = place_spare(key_siz) if center_num > 0  else place_center(bbox, centers, key_siz, collision_map)
+                key_x, key_y, key_ang = place_spare() if center_num > 0  else place_center(bbox, centers, key_siz, collision_map)
             elif anchor_rule[:11] == "place_next(":  # if place_next is used, the parameters are different
                 # Extracting another_anchor and buffer using regex
                 anchor_rule_matches = re.findall(r"\((.*?),\s*(.*?)\)", anchor_rule)
@@ -231,7 +242,7 @@ class LayoutGenerator:
                 key_x, key_y, key_ang = anchor_func(bbox, centers, key_siz, collision_map)
 
             if key_x is None:  # if the anchor cannot be placed due to conflicts
-                key_x, key_y, key_ang = place_spare(key_siz) if anchor_rule[:11] != "place_next(" else place_next_wall(bbox, centers, key_siz, collision_map)
+                key_x, key_y, key_ang = place_spare() if anchor_rule[:11] != "place_next(" else place_next_wall(bbox, centers, key_siz, collision_map)
 
             if key_ang == "W" or key_ang == "E":  # rotation 90 deg
                 key_siz = key_siz[::-1]
@@ -248,6 +259,7 @@ class LayoutGenerator:
                 if furniture_rule_str.split("(")[0] not in ["place_front", "place_beside", "place_around"]:  # sometimes the llm generates anchor rules for non-anchor furnitures
                     print(colored(f"Invalid placement rule for {furniture}", "grey"))
                     continue
+
                 furniture_rule = self.str_to_rule[furniture_rule_str.split("(")[0]]
                 matches = re.findall(r"\(([0-9]*\.?[0-9]+)\)", furniture_rule_str)
                 furniture_rule_buffer = int(float(matches[0]) * 6)
@@ -264,3 +276,115 @@ class LayoutGenerator:
 
         return furniture_pos, furniture_siz, furniture_ang
     
+    def generate_ornament_diagram(self, room_area, room_type, room_furnitures, is_edit=False, edit_description=None, edit_graph=None):
+        # Generate a graph from description using GPT-4
+        context_msg = """
+        Task: You are an awesome 3D Scene Designer. Design the ornaments added to an existing {} located within a {} that has an area of {} square meters. These are the furnitures in the room right now: {}.
+        
+        Requirements:
+        1. Ornament List:
+            - Enumerate all the ornaments in this room. Any objects beside children_cabinet, nightstand, bookcase, wardrobe, coffee_table, corner_table, side_cabinet, wine_cabinet, tv_stand, drawer_chest, shelf, round_end_table, double_bed, queen_bed, king_bed, bunk_bed, bed_frame, single_bed, kids_bed, dining_chair, lounge_chair, office_chair, dressing_chair, classic_chinese_chair, barstool, dressing_table, dining_table, desk, three_seat_sofa, armchair, loveseat_sofa, l_shaped_sofa, lazy_sofa, chaise_longue_sofa, stool, kitchen_cabinet, toilet, bathtub, and sink are considered ornaments.
+            - You can generate any ornament. Examples might include a Spongebob statue, a witch's hat, and a Gothic clock. 
+            - Please take into consideration the area and style of the room when you are generating.
+            - Generate as many ornaments as you can, and be CREATIVE with the ornaments; any weird ornaments are welcome.
+            - Return format: [<ornament1>, <ornament2>, ...]
+        2. Ornament Descriptions:
+            - For each ornament, provide a description of its aesthetic shape and structure considering the house and room's styles.
+            - Example: "A classic witch hat, made of black velvet with a wide brim."
+            - Return format: {{<ornament_name>: <description>}}
+        3. Ornament Sizes:
+            - For each ornament, provide its dimensions (length, width, and height) in meters, keeping in mind the <room_area> square meters room area.
+            - Return format: {{<ornament_name>: [length(meters), width(meters), height(meters)]}}
+        4. Ornament Placements: 
+            - For each ornament, provide its placement rule in the scene; below are the rules that you can use:
+                (1) "place_center" which places the ornament at the center of available spaces in the room,
+                (2) "place_next_wall" which places the ornament with its side against a segment of the wall.
+                (3) "place_wall" which places the ornament with its back against a segment of the wall
+                (4) "place_corner" which places the ornament at a corner
+                (5) "place_front(x, anchor)" which places the ornament in front of an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a mirror in front of a cabinet.
+                (6) "place_beside(x, anchor)" which places the furniture beside an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a vase beside a TV stand.
+                (7) "place_around(x, anchor)" which places the furniture around an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a set of candelabras around a dining table.
+                (8) "place_top(x, anchor)" which places the ornament on top of an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a vodka bottle on a table.
+                (9) "place_on_wall(x)" which places the ornament on the wall at a height of x meters, like placing a clock on the wall.
+            - For example, if a pear is placed 1 meter beside "table1", your response should be {{"pear", "place_beside(1, table1)”}}.
+            - You can set x to 0 if you want the buffer distance to 0.
+            - Return format: {{<ornament_name>: <placement_rule>}}
+
+        Output: Provide the information in a valid JSON structure with no spaces. I'll give you 100 bucks if you help me design a perfect scene and return it in the right format:
+        {{
+            "ornament_list": [...],
+            "ornament_descriptions": {{...}},
+            "ornament_sizes": {{...}},
+            "ornament_placements": [...]
+        }}
+        """
+        context_msg = context_msg.format(room_type, self.description, room_area, str(room_furnitures))
+
+        edit_context_msg = """
+        Task: You are an awesome 3D Scene Designer serving a customer. You are given a 3D indoor ornament graph for a {} located within a {}. The design fits within an area of {} square meters. The ornament graph is a complement to the existing furnitures in the room, and these furnitures are {}. The scene graph is generated with the four requirements below:
+
+        Requirements:
+        1. Ornament List:
+            - Enumerate all the ornaments in this room. Any objects beside children_cabinet, nightstand, bookcase, wardrobe, coffee_table, corner_table, side_cabinet, wine_cabinet, tv_stand, drawer_chest, shelf, round_end_table, double_bed, queen_bed, king_bed, bunk_bed, bed_frame, single_bed, kids_bed, dining_chair, lounge_chair, office_chair, dressing_chair, classic_chinese_chair, barstool, dressing_table, dining_table, desk, three_seat_sofa, armchair, loveseat_sofa, l_shaped_sofa, lazy_sofa, chaise_longue_sofa, stool, kitchen_cabinet, toilet, bathtub, and sink are considered ornaments.
+            - You can generate any ornament. Examples might include a Spongebob statue, a witch's hat, and a Gothic clock. 
+            - Please take into consideration the area and style of the room when you are generating.
+            - Generate as many ornaments as you can, and be CREATIVE with the ornaments; any weird ornaments are welcome.
+            - Return format: [<ornament1>, <ornament2>, ...]
+        2. Ornament Descriptions:
+            - For each ornament, provide a description of its aesthetic shape and structure considering the house and room's styles.
+            - Example: "A classic witch hat, made of black velvet with a wide brim."
+            - Return format: {{<ornament_name>: <description>}}
+        3. Ornament Sizes:
+            - For each ornament, provide its dimensions (length, width, and height) in meters, keeping in mind the <room_area> square meters room area.
+            - Return format: {{<ornament_name>: [length(meters), width(meters), height(meters)]}}
+        4. Ornament Placements: 
+            - For each ornament, provide its placement rule in the scene; below are the rules that you can use:
+                (1) "place_center" which places the ornament at the center of available spaces in the room,
+                (2) "place_next_wall" which places the ornament with its side against a segment of the wall.
+                (3) "place_wall" which places the ornament with its back against a segment of the wall
+                (4) "place_corner" which places the ornament at a corner
+                (5) "place_front(x, anchor)" which places the ornament in front of an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a mirror in front of a cabinet.
+                (6) "place_beside(x, anchor)" which places the furniture beside an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a vase beside a TV stand.
+                (7) "place_around(x, anchor)" which places the furniture around an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a set of candelabras around a dining table.
+                (8) "place_top(x, anchor)" which places the ornament on top of an existing anchor furniture in the given list above with a buffer distance of x meters, like placing a vodka bottle on a table.
+                (9) "place_on_wall(x)" which places the ornament on the wall at a height of x meters, like placing a clock on the wall.
+            - For example, if a pear is placed 1 meter beside "table1", your response should be {{"pear", "place_beside(1, table1)”}}.
+            - You can set x to 0 if you want the buffer distance to 0.
+            - Return format: {{<ornament_name>: <placement_rule>}}
+
+        Generated Data of the Scene Graph of the {}:
+        {}
+
+        Now, the customer wants to edit the scene graph. They have provided the following description of the changes they want to make:
+        {}
+
+        Task: Could you please update the ornament graph based on the customer's request and provide the updated data strictly following the same requirements above?
+
+        Output: Provide the information in a valid JSON structure with no spaces. I'll give you 100 bucks if you help me design a perfect ornament graph and return it in the right format:
+        {{
+            "ornament_list": [...],
+            "ornament_descriptions": {{...}},
+            "ornament_sizes": {{...}},
+            "ornament_placements": [...]
+        }}
+        """
+        edit_context_msg = edit_context_msg.format(room_type, self.description, room_area, str(room_furnitures), room_type, edit_graph, edit_description)
+
+        client = openai.OpenAI()
+        raw_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "user", "content": context_msg if not is_edit else edit_context_msg},
+            ],
+            temperature=0.4,
+            max_tokens=4096
+        )
+        response_str = raw_response.choices[0].message.content
+        raw_response = response_str.replace("\n", "").strip()
+        pattern = r'\{(?:[^{}]|(?R))*\}'
+        response = json.loads(regex.search(pattern, raw_response).group())
+
+        print(colored(f"{room_type} Ornament Graph", "yellow"))
+        print('\n'.join([f'{colored(k, "blue")}: {v}' for k, v in response.items()]))
+
+        return response
