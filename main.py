@@ -12,7 +12,7 @@ def main(args):
     house_v, house_f, border_map_no_doors, room_name_dict, boxes, centers = floorplanGenerator.generate_house_mesh(edit=True)  # Set edit to True to allow multiple-round language-guided editing
 
     # Create a room layout generator
-    layoutGenerator = LayoutGenerator(prompt, house_v, house_f, border_map_no_doors, room_name_dict, boxes, centers)
+    layoutGenerator = LayoutGenerator(args, prompt, house_v, house_f, border_map_no_doors, room_name_dict, boxes, centers)
     layoutGenerator.generate_room_objects(edit=True)  # Set edit to True to allow multiple-round language-guided editing
 
 if __name__ == "__main__":

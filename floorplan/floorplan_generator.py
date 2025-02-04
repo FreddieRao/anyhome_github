@@ -15,7 +15,8 @@ import floorplan.utils as utils
 
 
 class FloorplanGenerator:
-    def __init__(self, description, output_dir="floorplan/output", houseganpp_weight="floorplan/houseganpp/checkpoints/pretrained.pth"):
+    def __init__(self, args, description, output_dir="floorplan/output", houseganpp_weight="floorplan/houseganpp/checkpoints/pretrained.pth"):
+        self.args = args
         self.description = description
         self.output_dir = output_dir
         self.houseganpp_weight = houseganpp_weight
@@ -23,7 +24,7 @@ class FloorplanGenerator:
     def generate_house_mesh(self, edit=False):
         print(colored("Generating house mesh...", "grey"))
         # Generate graph from descriptoin
-        nds, eds, room_name_dict, room_list, fp_str = self.generate_bubble_diagram(self.description)
+        nds, eds, room_name_dict, room_list, fp_str = self.generate_bubble_diagram(self.args, self.description)
         # Generate floorplan
         border_map_no_doors, boxes, centers = self.generate_floorplan(nds, eds, room_name_dict, room_list)
         # Handle editing
@@ -60,7 +61,7 @@ class FloorplanGenerator:
 
         return border_map_no_doors, boxes, centers
 
-    def generate_bubble_diagram(self, description, is_edit=False, edit_description=None, edit_fp=None):
+    def generate_bubble_diagram(self, args, description, is_edit=False, edit_description=None, edit_fp=None):
         # Generate a graph from description using GPT-4
         context_msg = """
         Task: You are a talented Architectural Planner tasked with envisioning the floorplan for a house described as {}. Your need to generate four things as described below:
@@ -109,16 +110,17 @@ class FloorplanGenerator:
         }}
         """
 
-        client = openai.OpenAI()
+        client = openai.OpenAI(api_key=args.api_key, base_url=args.base_url)
         raw_response = client.chat.completions.create(
-            model="gpt-4",
+            model=args.model,
             messages=[
                 {"role": "user", "content": context_msg.format(description) if not is_edit else edit_context_msg.format(description, edit_fp, edit_description)},
+                #{"role": "user","content": "What is the meaning of life?"},
             ],
             temperature=0.7,
             max_tokens=2048
         )
-
+        
         response_str = raw_response.choices[0].message.content
         raw_response = response_str.replace("\n", "").replace(" ", "")
         pattern = r'\{(?:[^{}]|(?R))*\}'  # regex to discard text paragraphs before or after the JSON object

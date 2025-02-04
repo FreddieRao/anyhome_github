@@ -10,7 +10,8 @@ from layout.utils import *
 
 
 class LayoutGenerator:
-    def __init__(self, description, house_v, house_f, border_map_no_doors, room_name_dict, boxes, centers):
+    def __init__(self, args, description, house_v, house_f, border_map_no_doors, room_name_dict, boxes, centers):
+        self.args = args
         self.description = description
         self.house_v = house_v
         self.house_f = house_f
@@ -43,7 +44,7 @@ class LayoutGenerator:
             total_area = sum(areas)
 
             # Generate the furniture diagram and layout
-            furniture_graph = self.generate_furniture_diagram(total_area, room)
+            furniture_graph = self.generate_furniture_diagram(self.args, total_area, room)
             furniture_graph_list[room] = furniture_graph
             pos, siz, ang = self.generate_furniture_layout(i, room, furniture_graph)
 
@@ -85,7 +86,7 @@ class LayoutGenerator:
 
         return pos, siz, ang
     
-    def generate_furniture_diagram(self, room_area, room_type, is_edit=False, edit_description=None, edit_graph=None):
+    def generate_furniture_diagram(self, args, room_area, room_type, is_edit=False, edit_description=None, edit_graph=None):
         # Generate a graph from description using GPT-4
         context_msg = """
         Task: You are an awesome 3D Scene Designer. Design a 3D indoor scene for a {} located within a {}. Ensure that the design fits within an area of {} square meters. Provide the details as a scene graph, structured in a JSON format.
@@ -181,9 +182,9 @@ class LayoutGenerator:
         """
         edit_context_msg = edit_context_msg.format(room_type, self.description, room_area, room_type, room_type, room_area, room_type, edit_graph, edit_description)
 
-        client = openai.OpenAI()
+        client = openai.OpenAI(api_key=args.api_key, base_url=args.base_url)
         raw_response = client.chat.completions.create(
-            model="gpt-4",
+            model=args.model,
             messages=[
                 {"role": "user", "content": context_msg if not is_edit else edit_context_msg},
             ],
