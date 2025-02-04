@@ -14,9 +14,11 @@ Then, install the dependencies at `requirements.txt`:
 pip install -r requirements.txt
 ```
 
-Also, you should enter you OPENAI API key in the `credentials.py` file:
+Also, you should enter you OPENAI API key in the `opt.py` file:
 ```python
-os.environ["OPENAI_API_KEY"] = "YOU API KEY"
+group.add_argument('--model', required=False, default="")
+group.add_argument('--api_key',required=False, default="")
+group.add_argument('--base_url',required=False, default="")
 ```
 Last, you could simply run the code by calling:
 ```bash

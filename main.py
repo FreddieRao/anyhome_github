@@ -5,7 +5,7 @@ import credentials
 
 def main(args):
     # Enter your prompt here
-    prompt = "A 1B1B haunted house."
+    prompt = "A 1B1B small house."
 
     # Create a floorplan generator, the floor plan mesh is stored at ./output, and the fp visualizations are at ./floorplan/output
     floorplanGenerator = FloorplanGenerator(args, prompt)

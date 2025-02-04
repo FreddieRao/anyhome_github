@@ -1,3 +1,6 @@
 import os
+from opt import get_default_parser
 
-os.environ["OPENAI_API_KEY"] = "ENTER YOUR OPEN API KEY HERE"
+parser = get_default_parser()
+args = parser.parse_args()
+os.environ["OPENAI_API_KEY"] = args.api_key

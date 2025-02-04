@@ -5,6 +5,8 @@ def get_default_parser():
 
     ### LLM CONFIG ###
     group = parser.add_argument_group("LLM")
-    group.addargument('--model', required=False, default="deepseek-chat")
-    group.addargument('--api_key',required=False, default="")
-    group.addargument('--base_url',required=False, default="https://api.deepseek.com")
+    group.add_argument('--model', required=False, default="deepseek/deepseek-r1:free")
+    group.add_argument('--api_key',required=False, default="your api key")
+    group.add_argument('--base_url',required=False, default="https://openrouter.ai/api/v1")
+
+    return parser
